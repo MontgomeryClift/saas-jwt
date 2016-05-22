@@ -5,7 +5,6 @@ var config = require('../config/main');
 var jwt = require('jsonwebtoken');
 var bodyParser = require('body-parser');
 
-
 // Load models
 var User = require('./models/user');
 
@@ -22,18 +21,31 @@ module.exports = function(app) {
   // Bring in defined Passport Strategy
   require('../config/passport')(passport);
 
-  // Create API group routes
-  var apiRoutes = express.Router();
-
-  // Home route.
-  app.get('/', function(req, res) {
-    res.send('home page');
+  // WEB ROUTING
+  // Home route
+  app.get('/', function(req, res, next) {
+    passport.authenticate('jwt', function(err, user, info) {
+      if(info){
+        return res.redirect('/login');
+      }
+      if(err){
+        return next(err);
+      }
+      if(user){
+        res.send('Hola ' + user.username);
+      }
+      if (!user) { return res.redirect('/login'); }
+    })(req, res, next);
   });
 
   // Login Form
   app.get('/login', function(req, res) {
     res.render('login');
   });
+
+  // API ROUTING
+  // Create API group routes
+  var apiRoutes = express.Router();
 
   // Register new users
   apiRoutes.post('/register', function(req, res) {
@@ -43,7 +55,8 @@ module.exports = function(app) {
       var newUser = new User({
         email: req.body.email,
         password: req.body.password,
-        role: req.body.role
+        role: req.body.role,
+        username: req.body.username
       });
 
       // Attempt to save the user
@@ -58,10 +71,7 @@ module.exports = function(app) {
 
   // Authenticate the user and get a JSON Web Token to include in the header of future requests.
   apiRoutes.post('/authenticate', function(req, res) {
-    console.log(req.body);
-      if(!req.body){
-        res.send('falló');
-      }
+    // console.log(req.body);
     User.findOne({
       email: req.body.email
     }, function(err, user) {
@@ -75,7 +85,7 @@ module.exports = function(app) {
           if (isMatch && !err) {
             // Create token if the password matched and no error was thrown
             var token = jwt.sign(user, config.secret, {
-              expiresIn: 100000 // in seconds
+              expiresIn: 100 // in seconds
             });
             res.json({ success: true, token: 'JWT ' + token });
           } else {
